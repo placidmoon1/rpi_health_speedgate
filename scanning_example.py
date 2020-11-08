@@ -11,6 +11,8 @@ import pyrebase
 import random
 import logging
 
+machine_name = "RPI_1" # name of machine
+
 #config for logging
 logging.basicConfig(
     level=logging.DEBUG, 
@@ -111,6 +113,7 @@ while True:
                     current_time = time.strftime("%Y-%m-%d|%H:%M:%S", t)
                     db.child("user").child(real_data[0]).child("current_data").set(f_format.return_data())
                     db.child("user").child(real_data[0]).child("past_data").child(current_time).set(f_format.return_data())
+                    db.child("entrance_data").child(machine_name).child(current_time).set({real_data[0]: real_data[0]})
                     logging.debug(current_time)
                     logging.debug(real_data)
 
