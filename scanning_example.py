@@ -10,8 +10,26 @@ import cv2
 import pyrebase
 import random
 import logging
+import threading
+import RPi.GPIO as GPIO
 
-machine_name = "RPI_1" # name of machine
+"""Constants"""
+
+machine_name = "RPI_2" # name of machine
+
+buzzerPin = 11 # 
+
+"""Setup GPIO"""
+GPIO.setmode(GPIO.BOARD) # Broadcom pin-numbering scheme
+GPIO.setup(buzzerPin, GPIO.OUT) # PWM pin set as output
+
+
+def ring_buzzer():
+    GPIO.output(buzzerPin,GPIO.HIGH)
+    time.sleep(0.5)
+    GPIO.output(buzzerPin,GPIO.LOW)
+
+
 
 #config for logging
 logging.basicConfig(
@@ -34,9 +52,6 @@ firebase = pyrebase.initialize_app(config)
 
 # Get a reference to the database service
 db = firebase.database()
-
-data = {"name": "Mortimer 'Morty' Smith"}
-# db.child("users").push(data)
 
 #parsing arguments to take command line values
 ap = argparse.ArgumentParser()
@@ -113,9 +128,10 @@ while True:
                     current_time = time.strftime("%Y-%m-%d|%H:%M:%S", t)
                     db.child("user").child(real_data[0]).child("current_data").set(f_format.return_data())
                     db.child("user").child(real_data[0]).child("past_data").child(current_time).set(f_format.return_data())
-                    db.child("entrance_data").child(machine_name).child(current_time).set({real_data[0]: real_data[0]})
+                    db.child("entrance_data").child(machine_name).child(current_time).set({real_data[0]: real_data[1]})
                     logging.debug(current_time)
                     logging.debug(real_data)
+                    threading.Thread(target=ring_buzzer).start() #start buzzer thread
 
             except Exception as e:
                 print("invalid data {}".format(e))
