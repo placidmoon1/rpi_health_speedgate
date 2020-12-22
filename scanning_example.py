@@ -1,6 +1,8 @@
 #importing libraries
 from imutils.video import VideoStream
 from firebase_format import firebase_format
+from smbus2 import SMBus
+from mlx90614 import MLX90614
 from pyzbar import pyzbar
 import argparse
 import imutils
@@ -16,20 +18,55 @@ import RPi.GPIO as GPIO
 """Constants"""
 
 machine_name = "RPI_2" # name of machine
+#pin definition
+pwmPinL = 16 # GPIO 22
+dirPinL = 15 # GPIO 23
+pwmPinR = 22
+dirPinR = 21
+buzzerPin = 11 
 
-buzzerPin = 11 # 
+dc = 100 # duty cycle (0-100) for PWM pin
+
+# Pin Setup
+GPIO.setmode(GPIO.BOARD) # Broadcom pin-numbering scheme
+GPIO.setup(pwmPinL, GPIO.OUT) # PWM pin set as output
+GPIO.setup(dirPinL, GPIO.OUT) # PWM pin set as output
+GPIO.setup(pwmPinR, GPIO.OUT) # PWM pin set as output
+GPIO.setup(dirPinR, GPIO.OUT) # PWM pin set as output
 
 """Setup GPIO"""
 GPIO.setmode(GPIO.BOARD) # Broadcom pin-numbering scheme
 GPIO.setup(buzzerPin, GPIO.OUT) # PWM pin set as output
 
+"""temp sensor"""
+bus = SMBus(1)
+sensor = MLX90614(bus, address=0x5A)
 
 def ring_buzzer():
     GPIO.output(buzzerPin,GPIO.HIGH)
     time.sleep(0.5)
     GPIO.output(buzzerPin,GPIO.LOW)
 
-
+def open_gate():  
+  GPIO.output(dirPinL, GPIO.HIGH)
+  GPIO.output(dirPinR, GPIO.LOW)
+  for i in range(20000):
+    GPIO.output(pwmPinR,GPIO.HIGH)
+    GPIO.output(pwmPinL,GPIO.HIGH)
+    time.sleep(0.0000015)
+    GPIO.output(pwmPinL,GPIO.LOW)
+    GPIO.output(pwmPinR,GPIO.LOW)
+    time.sleep(0.0000015)
+  GPIO.output(dirPinL, GPIO.LOW)
+  GPIO.output(dirPinR, GPIO.HIGH)
+  time.sleep(2)
+  for i in range(20000):
+    GPIO.output(pwmPinR,GPIO.HIGH)
+    GPIO.output(pwmPinL,GPIO.HIGH)
+    time.sleep(0.0000015)
+    GPIO.output(pwmPinR,GPIO.LOW)
+    GPIO.output(pwmPinL,GPIO.LOW)
+    time.sleep(0.0000015)
 
 #config for logging
 logging.basicConfig(
@@ -124,14 +161,18 @@ while True:
                 if real_data[1] == match:
                     t = time.localtime()
                     logging.debug("authentication success!")
-                    f_format.update_data(round(25.5+random.random(), 1), round(45+random.random(),1), 33, 37, 36.5, 3.2)
+                    env_temp = sensor.get_ambient()
+                    body_temp = sensor.get_object_1()
+                    f_format.update_data(round(env_temp, 1), round(45+random.random(),1), 33, 37, round(body_temp, 1), 3.2)
                     current_time = time.strftime("%Y-%m-%d|%H:%M:%S", t)
+                    
                     db.child("user").child(real_data[0]).child("current_data").set(f_format.return_data())
                     db.child("user").child(real_data[0]).child("past_data").child(current_time).set(f_format.return_data())
                     db.child("entrance_data").child(machine_name).child(current_time).set({real_data[0]: real_data[1]})
                     logging.debug(current_time)
                     logging.debug(real_data)
-                    threading.Thread(target=ring_buzzer).start() #start buzzer thread
+                    if body_temp < 38.0: 
+                      threading.Thread(target=open_gate).start() 
 
             except Exception as e:
                 print("invalid data {}".format(e))
